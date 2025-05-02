@@ -1,5 +1,5 @@
 
-// gcc 5_UDP_server.c -lws2_32 -o 5_UDP_server.exe
+// gcc NetwerkenTaakUDP.c -lws2_32 -o NetwerkenTaakUDP.exe
 // _WIN32_WINNT version constants --> https://stackoverflow.com/questions/15370033/how-to-use-inet-pton-with-the-mingw-compiler
 
 // #define _WIN32_WINNT_WINTHRESHOLD           0x0A00 // Windows 10
@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 
 void print_ip_address( unsigned short family, struct sockaddr * ip )
 {
@@ -48,6 +49,8 @@ void ss_print_ip_address( struct sockaddr_storage * ip )
 
 int main( int argc, char * argv[] )
 {
+	int closing = 0; 
+
 	WSADATA wsaData; //WSAData wsaData; //Could be different case
 	if( WSAStartup( MAKEWORD(2,0), &wsaData ) != 0 ) // MAKEWORD(1,1) for Winsock 1.1, MAKEWORD(2,0) for Winsock 2.0:
 	{
@@ -107,21 +110,35 @@ int main( int argc, char * argv[] )
 
 	int number_of_bytes_received = 0;
 	char buffer[1000];
-	struct sockaddr_storage client_ip_address;
-	socklen_t client_ip_address_length = sizeof client_ip_address;
-	number_of_bytes_received = recvfrom( internet_socket, buffer, ( sizeof buffer ) - 1, 0, (struct sockaddr *) &client_ip_address, &client_ip_address_length );
-	if( number_of_bytes_received == -1 )
+
+	while (closing != 1)
 	{
-		printf( "errno = %d\n", WSAGetLastError() ); //https://docs.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2
-		perror( "recvfrom" );
+		struct sockaddr_storage client_ip_address;
+		socklen_t client_ip_address_length = sizeof client_ip_address;
+		number_of_bytes_received = recvfrom( internet_socket, buffer, ( sizeof buffer ) - 1, 0, (struct sockaddr *) &client_ip_address, &client_ip_address_length );
+		if( number_of_bytes_received == -1 )
+		{
+			printf( "errno = %d\n", WSAGetLastError() ); //https://docs.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2
+			perror( "recvfrom" );
+		}
+		buffer[number_of_bytes_received] = '\0';
+		printf( "Got %s from ", buffer );
+		ss_print_ip_address( &client_ip_address );
+		printf("this is the inside of the buffer, %s \n", buffer);
+		if(strcmp(buffer,"Test") ==0  ){
+			closing = 1;
+		}
+		
 	}
-	buffer[number_of_bytes_received] = '\0';
-	printf( "Got %s from ", buffer );
-	ss_print_ip_address( &client_ip_address );
+	
 
-	close( internet_socket );
 
-	WSACleanup();
+		close( internet_socket );
+
+		WSACleanup();
+	
+
+
 
 	return 0;
 }
