@@ -1,4 +1,4 @@
-// gcc 9_TCP_server.c -lws2_32 -o 9_TCP_server.exe
+// gcc NetwerkenTaakTCP.c -lws2_32 -o NetwerkenTaakTCP.exe
 // _WIN32_WINNT version constants --> https://stackoverflow.com/questions/15370033/how-to-use-inet-pton-with-the-mingw-compiler
 // #define _WIN32_WINNT_WINTHRESHOLD           0x0A00 // Windows 10
 // #define _WIN32_WINNT_WIN10                  0x0A00 // Windows 10
@@ -10,6 +10,9 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
+#include <time.h>
+#include <stdlib.h>
 
 void print_ip_address( unsigned short family, struct sockaddr * ip )
 {
@@ -46,6 +49,10 @@ void ss_print_ip_address( struct sockaddr_storage * ip )
 
 int main( int argc, char * argv[] )
 {
+	srand(time(NULL));
+	int RandomNumber = rand() % 1000000;
+
+	int closing = 0;
 	WSADATA wsaData; //WSAData wsaData; //Could be different case
 	if( WSAStartup( MAKEWORD(2,0), &wsaData ) != 0 ) // MAKEWORD(1,1) for Winsock 1.1, MAKEWORD(2,0) for Winsock 2.0:
 	{
@@ -129,14 +136,32 @@ int main( int argc, char * argv[] )
 
 	int number_of_bytes_received = 0;
 	char buffer[1000];
-	number_of_bytes_received = recv( client_socket, buffer, ( sizeof buffer ) - 1, 0 );
-	if( number_of_bytes_received == -1 )
+
+	while(closing != 1)
 	{
-		printf( "errno = %d\n", WSAGetLastError() ); //https://docs.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2
-		perror( "recv" );
+		number_of_bytes_received = recv( client_socket, buffer, ( sizeof buffer ) - 1, 0 );
+		if( number_of_bytes_received == -1 )
+		{
+			printf( "errno = %d\n", WSAGetLastError() ); //https://docs.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2
+			perror( "recv" );
+		}
+		buffer[number_of_bytes_received] = '\0';
+		printf( "Got %s\n", buffer );
+
+		if(RandomNumber > (int)buffer){
+
+			printf("Kleiner  \n");
+		}else if(RandomNumber < (int)buffer){
+			printf("Groter  \n");
+		}else {
+			printf("correct");
+			closing = 1;
+		}
+		if(strcmp(buffer,"escape")){
+			closing = 1;
+		}
 	}
-	buffer[number_of_bytes_received] = '\0';
-	printf( "Got %s\n", buffer );
+
 
 	int shutdown_return;
 	shutdown_return = shutdown( client_socket, SD_RECEIVE ); //Shutdown Send == SD_SEND ; Receive == SD_RECEIVE ; Send/Receive == SD_BOTH ; https://blog.netherlabs.nl/articles/2009/01/18/the-ultimate-so_linger-page-or-why-is-my-tcp-not-reliable --> Linux : Shutdown Send == SHUT_WR ; Receive == SHUT_RD ; Send/Receive == SHUT_RDWR
