@@ -8,6 +8,7 @@
 #include <winsock2.h>  // windows netwerking 
 #include <ws2tcpip.h> 
 
+#include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -50,9 +51,9 @@ void ss_print_ip_address( struct sockaddr_storage * ip )
 int main( int argc, char * argv[] )
 {
 	srand(time(NULL));
-	int RandomNumber = rand() % 1000000;
+	uint32_t RandomNumber = rand() % 2147483647; 
 
-	int closing = 0;
+	int closing = 1;
 	WSADATA wsaData; //WSAData wsaData; //Could be different case
 	if( WSAStartup( MAKEWORD(2,0), &wsaData ) != 0 ) // MAKEWORD(1,1) for Winsock 1.1, MAKEWORD(2,0) for Winsock 2.0:
 	{
@@ -134,35 +135,61 @@ int main( int argc, char * argv[] )
 	printf( "Got connection from " );
 	ss_print_ip_address( &client_ip_address );
 
-	int number_of_bytes_received = 0;
+	uint32_t number_of_bytes_received = 0;
 	char buffer[1000];
+	uint32_t net_order;
+	uint32_t host_order;
+	printf("RandomNummer: %i \n" , RandomNumber);
+	printf("PreWhile\n");
+	while (closing) {
+        printf("InWhile\n");
 
-	while(closing != 1)
-	{
-		number_of_bytes_received = recv( client_socket, buffer, ( sizeof buffer ) - 1, 0 );
-		if( number_of_bytes_received == -1 )
-		{
-			printf( "errno = %d\n", WSAGetLastError() ); //https://docs.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2
-			perror( "recv" );
-		}
-		buffer[number_of_bytes_received] = '\0';
-		printf( "Got %s\n", buffer );
+        // Leeg buffer voor veiligheid
+        memset(buffer, 0, sizeof(buffer));
 
-		if(RandomNumber > (int)buffer){
+        number_of_bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+		printf("number_of_bytes_received: %i \n",number_of_bytes_received );
+        if (number_of_bytes_received == -1) {
+            printf("errno = %d\n", WSAGetLastError());
+            perror("recv");
+            closing = 0;
+            break;
+        }
 
-			printf("Kleiner  \n");
-		}else if(RandomNumber < (int)buffer){
-			printf("Groter  \n");
-		}else {
-			printf("correct");
-			closing = 1;
-		}
-		if(strcmp(buffer,"escape")){
-			closing = 1;
-		}
+		// als er geen bytes worden gestuurd sluit de connectie 
+
+        if (number_of_bytes_received == 0) {
+            printf("Client closed connection\n");
+            closing = 0;
+            break;
+        }
+
+		// er meer dat 4 bytes worden gestuurd dan sluit de connectie ook ( niet direct nodig maar had ik gebruikt voor error handling )
+        if (number_of_bytes_received != 4) {
+            printf("Ongeldige invoer: verwacht 4 bytes, kreeg %d.\n", number_of_bytes_received);
+            closing = 0;
+            break;
+        }
+		// Zet netwerk byte order om naar host order  
+ 		memcpy(&net_order, buffer, sizeof(uint32_t)); // buffer word gekopieerd in de net order daarna worden word de netorder omgezet naar een integer om zo te kunnen vergelijken met de randomnummer
+ 		host_order = ntohl(net_order);
+  		printf("Ontvangen gok: %d\n", host_order);
+
+        // Vergelijking
+        if (RandomNumber > host_order) {
+			printf("groter\n");
+            send(client_socket, "Groter", 8, 0);
+        } else if (RandomNumber < host_order) {
+			printf("kleiner\n");
+            send(client_socket, "Kleiner", 7, 0);
+        } else {
+			printf("correct\n");
+            send(client_socket, "Correct", 8, 0);
+            closing = 0;
+        }
 	}
 
-
+	// shutdown code van de Les  shutdown functie sluit de socket en om de memory te clearen met wsaCleanup 
 	int shutdown_return;
 	shutdown_return = shutdown( client_socket, SD_RECEIVE ); //Shutdown Send == SD_SEND ; Receive == SD_RECEIVE ; Send/Receive == SD_BOTH ; https://blog.netherlabs.nl/articles/2009/01/18/the-ultimate-so_linger-page-or-why-is-my-tcp-not-reliable --> Linux : Shutdown Send == SHUT_WR ; Receive == SHUT_RD ; Send/Receive == SHUT_RDWR
 	if( shutdown_return == -1 )
